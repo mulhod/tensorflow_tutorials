@@ -1,5 +1,5 @@
 python==3.5
-tensorflow==0.10.0rc0
+tensorflow==0.10.0
 ipython
 jupyter
 pandas
