@@ -21,7 +21,7 @@ if [[ "${START_JUPYTER_ONLY}" == 0 ]]; then
     # Create Conda environment with TensorFlow, etc., installed
     echo "Creating Conda environment to use for the TensorFlow tutorials, etc."
     [[ -e "${CONDA_ENV}" ]] && { conda env remove --prefix "${CONDA_ENV}" }
-    conda install --prefix "${CONDA_ENV}" --yes -m --file --copy \
+    conda install --prefix "${CONDA_ENV}" --yes --mkdir --copy --file \
         "${THIS_DIR}"/conda_requirements.txt
     echo "Created TensorFlow Conda environment in \"${CONDA_ENV}\"."
     echo "Run \"source activate ${CONDA_ENV}\" to use the Conda environment" \
