@@ -1,4 +1,4 @@
-tensorflow=0.10.0
+tensorflow=0.12.1
 ipython
 jupyter
 pandas
