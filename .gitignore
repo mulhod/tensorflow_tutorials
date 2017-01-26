@@ -2,3 +2,5 @@ tf_env
 tensorflow
 .ipynb_checkpoints
 **/MNIST_data
+tensorflow_repository_examples
+tensorflow_repository_tutorials

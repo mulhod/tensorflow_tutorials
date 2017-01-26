@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-# Usage: source ./setup.sh[ --start_jupyter_only]
+# Usage: ./setup.sh[ --start_jupyter_only]
 
 START_JUPYTER_ONLY=0
 if [[ $# -gt 0 ]]; then
@@ -28,13 +28,14 @@ if [[ "${START_JUPYTER_ONLY}" == 0 ]]; then
     echo "Run \"source activate ${CONDA_ENV}\" to use the Conda environment" \
          "and \"source deactivate\" to get out of the environment."
 
-    # Clone TensorFlow repository and check out the "v0.12.1" branch
-    echo "Cloning the TensorFlow repository and checking out the \"v0.12.1\"" \
-         "branch and making symlinks to the examples and examples/tutorials" \
-         "directories..."
+    # Clone TensorFlow repository and check out the latest commit for the
+    # "v0.12.1" release
+    echo "Cloning the TensorFlow repository and checking out the latest" \
+         "commit for the v0.12.1 release and making symlinks to the examples" \
+         "and examples/tutorials directories..."
     git clone https://github.com/tensorflow/tensorflow.git
     cd tensorflow
-    git checkout v0.12.1
+    git checkout 4d924e796368163
     cd ..
     ln -s "${THIS_DIR}/tensorflow/tensorflow/examples" \
           "${THIS_DIR}/tensorflow_repository_examples"
