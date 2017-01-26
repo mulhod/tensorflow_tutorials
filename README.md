@@ -5,7 +5,7 @@
 
 ## Setup
 - In order to set up the environment and start a Jupyter notebook server on port 8889, run [setup.sh](./setup.sh): `zsh setup.sh`.
-- This will create a Conda environment in [`tf_env`](./tf_env), which will have all packages defined in [`conda_requirements.txt`](./conda_requirements.txt) installed in it, including TensorFlow version 0.12.1.
+- This will create a Conda environment in `tf_env`, which will have all packages defined in [`conda_requirements.txt`](./conda_requirements.txt) installed in it, including TensorFlow version 0.12.1.
 - It will also make a clone of the TensorFlow GitHub repository just for the purposes of being able to refer to data, etc., that exists as part of the repository.
 - Lastly, it will launch a Jupyter notebook server on port 8889. If the setup script was already run once and all you want to do is start the Jupyter notebook server, the setup script can be run with the `--start_jupyter_only` command-line flag.
 
