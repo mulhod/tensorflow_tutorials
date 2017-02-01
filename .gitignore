@@ -4,3 +4,5 @@ tensorflow
 **/MNIST_data
 tensorflow_repository_examples
 tensorflow_repository_tutorials
+**/test_data.zip
+**/test_data_revised/
