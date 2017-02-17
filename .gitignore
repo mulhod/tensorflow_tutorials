@@ -6,3 +6,4 @@ tensorflow_repository_examples
 tensorflow_repository_tutorials
 **/test_data.zip
 **/test_data_revised/
+tutorial_notebooks/TensorFlow_Mechanics_101/logs
