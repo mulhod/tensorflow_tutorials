@@ -1,3 +1,9 @@
+"""
+Helper functions/classes for reading in and representing data and
+running experiments.
+
+Some functions based on `mnist.py` from the `TensorFlow` tutorials.
+"""
 from os.path import join
 
 import pandas as pd
