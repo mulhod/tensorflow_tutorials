@@ -185,7 +185,10 @@ def inference(inputs, num_features, num_classes, hidden1_units,
     with tf.name_scope('softmax_linear'):
 
         weights = tf.Variable(
-              tf.random_normal_initializer(0.0, 0.05)([hidden1_units, num_classes]),
+              tf.random_normal_initializer(0.0, 0.05)([hidden2_units
+                                                           if hidden3_units is None
+                                                           else hidden3_units,
+                                                       num_classes]),
               name='weights')
         biases = tf.Variable(tf.zeros([num_classes]),
                              name='biases')
