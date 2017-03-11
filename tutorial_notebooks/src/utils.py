@@ -368,6 +368,42 @@ def do_eval(sess, eval_correct, inputs_placeholder, labels_placeholder, data,
                                    inputs_placeholder,
                                    labels_placeholder,
                                    batch_size)
+        feed_dict[keep_prob] = dropout
+        logit_output, true_cnt = sess.run([logits, eval_correct],
+                                          feed_dict=feed_dict)
+        true_count += true_cnt
+
+    acc = float(true_count) / num_examples
+    print('  Num examples: %d  Num correct: %d  Accuracy @ 1: %0.04f' %
+          (num_examples, true_count, acc))
+
+
+def do_eval_cnn(sess, eval_correct, inputs_placeholder, labels_placeholder,
+                data, logits, batch_size, keep_prob, dropout):
+    """
+    Runs one evaluation against the full epoch of data.
+
+    Args:
+        sess: The session in which the model has been trained.
+        eval_correct: The Tensor that returns the number of correct
+                      predictions.
+        inputs_placeholder: The input data placeholder.
+        labels_placeholder: The labels placeholder.
+        data: The set of data and labels to evaluate.
+        logits: List of logits,
+        batch_size: Size of each batch of data.
+    """
+
+    # And run one epoch of eval.
+    true_count = 0  # Counts the number of correct predictions.
+    steps_per_epoch = data.get_size() // batch_size
+    num_examples = steps_per_epoch * batch_size
+    for step in range(steps_per_epoch):
+        feed_dict = fill_feed_dict(data,
+                                   inputs_placeholder,
+                                   labels_placeholder,
+                                   batch_size)
+        feed_dict[keep_prob] = dropout
         logit_output, true_cnt = sess.run([logits, eval_correct],
                                           feed_dict=feed_dict)
         true_count += true_cnt
