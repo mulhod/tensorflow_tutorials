@@ -4,11 +4,19 @@ running experiments.
 
 Some functions based on `mnist.py` from the `TensorFlow` tutorials.
 """
-from os.path import join
+import re
+from glob import glob
+from os import listdir
+from itertools import chain
+from os.path import join, isdir, basename
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+
+# Regex for replacing non-alphanumeric characters (not including hyphens
+# and apostrophes)
+NON_ALPHA_RE = re.compile(r"[^a-z0-9\-']+")
 
 
 def read_data(data_path,
@@ -74,6 +82,145 @@ def read_data(data_path,
             dev_ids,
             dev_features,
             dev_labels)
+
+
+def read_text_files_and_labels(labels_dict,
+                               train_data_path,
+                               test_data_path,
+                               dev_data_path=None,
+                               get_id_from_text_file_func=lambda x: x,
+                               random_=False):
+    """
+    Read in text files and vectorize their contents so that each text
+    is represented by a vector of the same size and also map them to
+    labels and IDs. Return Dataset objects for training, test, and
+    development sets (development set will be None if `dev_data_path`
+    is None).
+
+    :param labels_dict: dictionary mapping IDs to labels
+    :type labels_dict: must contain a label/ID pair for every ID
+                       in the training/test/dev data
+    :param train_data_path: glob-style pattern for training data file
+                            paths
+    :type train_data_path: str
+    :param test_data_path: glob-style pattern for test data file
+                           paths
+    :type test_data_path: str
+    :param dev_data_path: glob-style pattern for dev data file paths
+                          (None if no development set)
+    :type dev_data_path: str or None
+    :param get_id_from_text_file_func: function to use to extract IDs
+                                       from text file names
+    :type get_id_from_text_file_func: function (by default, this
+                                      function simply strips off the
+                                      ".txt" extension)
+    :param random_: value for random_ parameter passed into Dataset
+                    object, used for shuffling data
+    :type random_: bool
+
+    :returns: training, test, and development set DataSets
+              (development set DataSet might be None if no args were
+              provided to initalize it)
+    :rtype: (Dataset, Dataset, Dataset or None)
+    """
+
+    data_paths = [train_data_path, test_data_path]
+    partitions = ["training", "test"]
+    word_lists_training = []
+    train_ids = []
+    train_labels = []
+    word_lists_test = []
+    test_ids = []
+    test_labels = []
+    word_lists_list = [word_lists_training, word_lists_test]
+    ids_lists = [train_ids, test_ids]
+    labels_lists = [train_labels, test_labels]
+    if dev_data_path:
+        data_paths.append(dev_data_path)
+        partitions.append("dev")
+        word_lists_dev = []
+        dev_ids = []
+        dev_labels = []
+        word_lists_list.append(word_lists_dev)
+        ids_lists.append(dev_ids)
+        labels_lists.append(dev_labels)
+    for (word_lists,
+         ids_list,
+         labels_list,
+         data_path) in zip(word_lists_list,
+                           ids_lists,
+                           labels_lists,
+                           data_paths):
+        file_paths = glob(data_path)
+        if not file_paths:
+            raise ValueError("glob('{}') resulted in no matching file paths!"
+                             .format(data_path))
+        for file_path in glob(data_path):
+            id_ = get_id_from_text_file_func(basename(file_path))
+            ids_list.append(id_)
+            labels_list.append(labels_dict[id_])
+            with open(file_path) as text_file:
+                word_lists.append(NON_ALPHA_RE.sub(text_file.read().strip().lower(),
+                                                   r" ").split())
+
+    # Get all unique words
+    words = set()
+    for word_list in chain(*word_lists_list):
+        words.update(word_list)
+
+    # Assign a unique number to each word
+    words_vectorized = {w: i for i, w in enumerate(words)}
+
+    # Get the maximum number of words across all text files
+    word_list_lengths = []
+    for (word_lists, partition) in zip(word_lists_list, partitions):
+        word_list_lengths.extend([len(word_list) for word_list in word_lists])
+    vector_size = np.max(word_list_lengths)
+
+    padding_value = -1
+    word_vectors_training = []
+    word_vectors_test = []
+    word_vectors_list = [word_vectors_training, word_vectors_test]
+    if dev_data_path:
+        word_vectors_dev = [word_vectors_dev]
+        word_vectors_list.append()
+    for (word_lists, word_vectors) in zip(word_lists_list, word_vectors_list):
+        for word_list in word_lists:
+            word_list_vectorized = [words_vectorized[w] for w in word_list]
+            for i in range(len(word_list_vectorized), vector_size + 1):
+                word_list_vectorized.append(padding_value)
+            word_vectors.append(np.array(word_list_vectorized, dtype=np.int32))
+
+    train_features = np.array(word_vectors_training, dtype=np.int32)
+    if len(train_ids) != len(np.array(train_ids, dtype=np.int32)):
+        raise ValueError("Decrease in precision causes ID duplicates.")
+    train_ids = np.array(train_ids, dtype=np.int32)
+    train_labels = np.array(train_labels, dtype=np.int32)
+    if np.min(train_labels) == 1:
+        train_labels = train_labels - 1
+    test_features = np.array(word_vectors_test, dtype=np.int32)
+    if len(test_ids) != len(np.array(test_ids, dtype=np.int32)):
+        raise ValueError("Decrease in precision causes ID duplicates.")
+    test_ids = np.array(test_ids, dtype=np.int32)
+    test_labels = np.array(test_labels, dtype=np.int32)
+    if np.min(test_labels) == 1:
+        test_labels = test_labels - 1
+    if dev_data_path:
+        dev_features = np.array(word_vectors_dev, dtype=np.int32)
+        if len(dev_ids) != len(np.array(dev_ids, dtype=np.int32)):
+            raise ValueError("Decrease in precision causes ID duplicates.")
+        dev_ids = np.array(dev_ids, dtype=np.int32)
+        dev_labels = np.array(dev_labels, dtype=np.int32)
+        if np.min(dev_labels) == 1:
+            dev_labels = dev_labels - 1
+    else:
+        dev_features = None
+        dev_ids = None
+        dev_labels = None
+
+    return (DataSet(train_ids, train_features, train_labels, random_=random_),
+            DataSet(test_ids, test_features, test_labels),
+            DataSet(dev_ids, dev_features, dev_labels) if dev_data_path else None)
 
 
 class DataSet:

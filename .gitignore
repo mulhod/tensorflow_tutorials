@@ -9,4 +9,5 @@ tensorflow_repository_tutorials
 **/test_data_revised/
 **/cmg2016_data
 **/metaphor_data
-tutorial_notebooks/TensorFlow_Mechanics_101/logs
+**/PRAXIS*
+**/logs
