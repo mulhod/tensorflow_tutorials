@@ -13,7 +13,11 @@ if [[ $# -gt 0 ]]; then
     fi
 fi
 
-THIS_DIR="$(dirname "$(readlink -f $0)")"
+if [[ $OSTYPE == "darwin16.0" ]]; then
+    THIS_DIR=$(python -c "from __future__ import print_function; import os.path; print(os.path.dirname(os.path.realpath(\"$0\")))")
+else
+    THIS_DIR=$(dirname $(readlink -f $0))
+fi
 CONDA_ENV="${THIS_DIR}/tf_env"
 
 if [[ "${START_JUPYTER_ONLY}" == 0 ]]; then
