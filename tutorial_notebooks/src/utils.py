@@ -155,7 +155,7 @@ def read_text_files_and_labels(labels_dict,
         if not file_paths:
             raise ValueError("glob('{}') resulted in no matching file paths!"
                              .format(data_path))
-        for file_path in glob(data_path):
+        for file_path in file_paths:
             id_ = get_id_from_text_file_func(basename(file_path))
             ids_list.append(id_)
             labels_list.append(labels_dict[id_])
@@ -219,8 +219,8 @@ def read_text_files_and_labels(labels_dict,
         dev_labels = None
 
     return (DataSet(train_ids, train_features, train_labels, random_=random_),
-            DataSet(test_ids, test_features, test_labels),
-            DataSet(dev_ids, dev_features, dev_labels) if dev_data_path else None)
+            DataSet(test_ids, test_features, test_labels, random_=random_),
+            DataSet(dev_ids, dev_features, dev_labels, random_=random_) if dev_data_path else None)
 
 
 class DataSet:
