@@ -13,9 +13,10 @@ from os.path import join, isdir, basename
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.contrib import learn
 
 # Regex for replacing non-alphanumeric characters (not including hyphens
-# and apostrophes)
+# and apostrophes) (used in `read_text_files_and_labels` function)
 NON_ALPHA_RE = re.compile(r"[^a-z0-9\-']+")
 
 
@@ -82,6 +83,37 @@ def read_data(data_path,
             dev_ids,
             dev_features,
             dev_labels)
+
+
+def clean_str(text):
+    """
+    Tokenization/string cleaning.
+
+    Inspired by/taken from https://github.com/yoonkim/CNN_sentence/blob/master/process_data.py.
+
+    :param text: input text
+    :type text: str
+
+    :returns: preprocessed text
+    :rtype: str
+    """
+
+    for RE, sub in [(r"[^A-Za-z0-9(),!?\'\`]", " "),
+                    (r"\'s", " \'s"),
+                    (r"\'ve", " \'ve"),
+                    (r"n\'t", " n\'t"),
+                    (r"\'re", " \'re"),
+                    (r"\'d", " \'d"),
+                    (r"\'ll", " \'ll"),
+                    (r",", " , "),
+                    (r"!", " ! "),
+                    (r"\(", " \( "),
+                    (r"\)", " \) "),
+                    (r"\?", " \? "),
+                    (r"\s{2,}", " ")]:
+        text = re.sub(RE, sub, text)
+
+    return text.strip().lower()
 
 
 def read_text_files_and_labels(labels_dict,
@@ -220,7 +252,134 @@ def read_text_files_and_labels(labels_dict,
 
     return (DataSet(train_ids, train_features, train_labels, random_=random_),
             DataSet(test_ids, test_features, test_labels, random_=random_),
-            DataSet(dev_ids, dev_features, dev_labels, random_=random_) if dev_data_path else None)
+            DataSet(dev_ids, dev_features, dev_labels, random_=random_)
+                if dev_data_path else None)
+
+
+def read_text_files_and_labels_with_vocab_processor(labels_dict,
+                                                    train_data_path,
+                                                    test_data_path,
+                                                    dev_data_path=None,
+                                                    get_id_from_text_file_func=lambda x: x,
+                                                    random_=False):
+    """
+    Read in and clean text files and vectorize their contents
+    using `learn.preprocessing.VocabularyProcessor` so that each text
+    is represented by a vector of the same size and also map them to
+    labels and IDs. Return Dataset objects for training, test, and
+    development sets (development set will be None if `dev_data_path`
+    is None).
+
+    :param labels_dict: dictionary mapping IDs to labels
+    :type labels_dict: must contain a label/ID pair for every ID
+                       in the training/test/dev data
+    :param train_data_path: glob-style pattern for training data file
+                            paths
+    :type train_data_path: str
+    :param test_data_path: glob-style pattern for test data file
+                           paths
+    :type test_data_path: str
+    :param dev_data_path: glob-style pattern for dev data file paths
+                          (None if no development set)
+    :type dev_data_path: str or None
+    :param get_id_from_text_file_func: function to use to extract IDs
+                                       from text file names
+    :type get_id_from_text_file_func: function (by default, this
+                                      function simply strips off the
+                                      ".txt" extension)
+    :param random_: value for random_ parameter passed into Dataset
+                    object, used for shuffling data
+    :type random_: bool
+
+    :returns: training, test, and development set DataSets
+              (development set DataSet might be None if no args were
+              provided to initalize it)
+    :rtype: (Dataset, Dataset, Dataset or None)
+    """
+
+    data_paths = [train_data_path, test_data_path]
+    partitions = ["training", "test"]
+    train_texts = []
+    train_ids = []
+    train_labels = []
+    test_texts = []
+    test_ids = []
+    test_labels = []
+    texts_list = [train_texts, test_texts]
+    ids_lists = [train_ids, test_ids]
+    labels_lists = [train_labels, test_labels]
+    if dev_data_path:
+        data_paths.append(dev_data_path)
+        partitions.append("dev")
+        dev_texts = []
+        dev_ids = []
+        dev_labels = []
+        texts_list.append(dev_texts)
+        ids_lists.append(dev_ids)
+        labels_lists.append(dev_labels)
+    for (texts,
+         ids_list,
+         labels_list,
+         data_path) in zip(texts_list,
+                           ids_lists,
+                           labels_lists,
+                           data_paths):
+        file_paths = glob(data_path)
+        if not file_paths:
+            raise ValueError("glob('{}') resulted in no matching file paths!"
+                             .format(data_path))
+        for file_path in file_paths:
+            id_ = get_id_from_text_file_func(basename(file_path))
+            ids_list.append(id_)
+            labels_list.append(labels_dict[id_])
+            with open(file_path) as text_file:
+                texts.append(clean_str(text_file.read()))
+
+    # Build vocabulary
+    all_texts = list(chain(train_texts, test_texts))
+    if dev_data_path:
+        all_texts.extend(dev_texts)
+    max_document_length = max([len(x.split(" ")) for x in all_texts])
+    vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length)
+    vocab_processor.fit(all_texts)
+
+    # Vectorize texts
+    train_texts_vectorized = np.array(list(vocab_processor.transform(train_texts)))
+    test_texts_vectorized = np.array(list(vocab_processor.transform(test_texts)))
+    if dev_data_path:
+        dev_texts_vectorized = np.array(list(vocab_processor.transform(dev_texts)))
+
+    train_texts_vectorized = np.array(train_texts_vectorized, dtype=np.int32)
+    if len(train_ids) != len(np.array(train_ids, dtype=np.int32)):
+        raise ValueError("Decrease in precision causes ID duplicates.")
+    train_ids = np.array(train_ids, dtype=np.int32)
+    train_labels = np.array(train_labels, dtype=np.int32)
+    if np.min(train_labels) == 1:
+        train_labels = train_labels - 1
+    test_texts_vectorized = np.array(test_texts_vectorized, dtype=np.int32)
+    if len(test_ids) != len(np.array(test_ids, dtype=np.int32)):
+        raise ValueError("Decrease in precision causes ID duplicates.")
+    test_ids = np.array(test_ids, dtype=np.int32)
+    test_labels = np.array(test_labels, dtype=np.int32)
+    if np.min(test_labels) == 1:
+        test_labels = test_labels - 1
+    if dev_data_path:
+        dev_texts_vectorized = np.array(dev_texts_vectorized, dtype=np.int32)
+        if len(dev_ids) != len(np.array(dev_ids, dtype=np.int32)):
+            raise ValueError("Decrease in precision causes ID duplicates.")
+        dev_ids = np.array(dev_ids, dtype=np.int32)
+        dev_labels = np.array(dev_labels, dtype=np.int32)
+        if np.min(dev_labels) == 1:
+            dev_labels = dev_labels - 1
+    else:
+        dev_features = None
+        dev_ids = None
+        dev_labels = None
+
+    return (DataSet(train_ids, train_texts_vectorized, train_labels, random_=random_),
+            DataSet(test_ids, test_texts_vectorized, test_labels, random_=random_),
+            DataSet(dev_ids, dev_texts_vectorized, dev_labels, random_=random_)
+                if dev_data_path else None)
 
 
 class DataSet:
@@ -561,3 +720,42 @@ def do_eval_cnn(sess, eval_correct, inputs_placeholder, labels_placeholder,
     acc = float(true_count) / num_examples
     print('  Num examples: %d  Num correct: %d  Accuracy @ 1: %0.04f' %
           (num_examples, true_count, acc))
+
+
+def fully_connected_network(input_fc, vector_sizes, keep_prob, num_classes):
+
+    fc_w1 = tf.Variable(tf.random_normal([vector_sizes[0], vector_sizes[1]]))
+    fc_b1 = tf.Variable(tf.random_normal([vector_sizes[1]]))
+
+    hidden1 = tf.add(tf.matmul(input_fc, fc_w1), fc_b1)
+    hidden1 = tf.nn.relu(hidden1)
+    hidden1 = tf.nn.dropout(hidden1, keep_prob)
+
+    fc_w2 = tf.Variable(tf.random_normal([vector_sizes[1], vector_sizes[2]]))
+    fc_b2 = tf.Variable(tf.random_normal([vector_sizes[2]]))
+
+    hidden2 = tf.add(tf.matmul(hidden1, fc_w2), fc_b2)
+    hidden2 = tf.nn.relu(hidden2)
+    hidden2 = tf.nn.dropout(hidden2, keep_prob)
+
+    weights = tf.Variable(tf.random_normal([vector_sizes[2], num_classes]))
+    biases = tf.Variable(tf.random_normal([num_classes]))
+    logits = tf.matmul(hidden2, weights) + biases
+    
+    return logits
+
+
+def conv_layer(input, filter_size, num_filter, max_pool_filter_size, max_pool_stride_size):
+    
+    weight = tf.Variable(tf.random_normal([filter_size, 1, 1, num_filter]))
+    bias = tf.Variable(tf.random_normal([num_filter]))
+    
+    conv = tf.nn.conv2d(input, weight, strides=[1, 1, 1, 1], padding='SAME')
+    conv = tf.nn.bias_add(conv, bias)
+    conv = tf.nn.relu(conv, name="relu")
+    
+    conv = tf.nn.max_pool(conv,
+                          ksize=[1, 1, max_pool_filter_size, 1],
+                          strides=[1, 1, max_pool_stride_size, 1],
+                          padding='VALID')
+    return conv
