@@ -3,6 +3,7 @@ tensorflow
 .ipynb_checkpoints
 **/__pycache__
 **/MNIST_data
+*sublime*
 tensorflow_repository_examples
 tensorflow_repository_tutorials
 **/test_data.zip
