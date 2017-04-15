@@ -226,14 +226,14 @@ def read_text_files_and_labels(labels_dict,
     train_features = np.array(word_vectors_training, dtype=np.int32)
     if len(train_ids) != len(np.array(train_ids, dtype=np.int32)):
         raise ValueError("Decrease in precision causes ID duplicates.")
-    train_ids = np.array(train_ids, dtype=np.int32)
+    train_ids = np.array(train_ids)
     train_labels = np.array(train_labels, dtype=np.int32)
     if np.min(train_labels) == 1:
         train_labels = train_labels - 1
     test_features = np.array(word_vectors_test, dtype=np.int32)
     if len(test_ids) != len(np.array(test_ids, dtype=np.int32)):
         raise ValueError("Decrease in precision causes ID duplicates.")
-    test_ids = np.array(test_ids, dtype=np.int32)
+    test_ids = np.array(test_ids)
     test_labels = np.array(test_labels, dtype=np.int32)
     if np.min(test_labels) == 1:
         test_labels = test_labels - 1
@@ -241,7 +241,7 @@ def read_text_files_and_labels(labels_dict,
         dev_features = np.array(word_vectors_dev, dtype=np.int32)
         if len(dev_ids) != len(np.array(dev_ids, dtype=np.int32)):
             raise ValueError("Decrease in precision causes ID duplicates.")
-        dev_ids = np.array(dev_ids, dtype=np.int32)
+        dev_ids = np.array(dev_ids)
         dev_labels = np.array(dev_labels, dtype=np.int32)
         if np.min(dev_labels) == 1:
             dev_labels = dev_labels - 1
@@ -352,14 +352,14 @@ def read_text_files_and_labels_with_vocab_processor(labels_dict,
     train_texts_vectorized = np.array(train_texts_vectorized, dtype=np.int32)
     if len(train_ids) != len(np.array(train_ids, dtype=np.int32)):
         raise ValueError("Decrease in precision causes ID duplicates.")
-    train_ids = np.array(train_ids, dtype=np.int32)
+    train_ids = np.array(train_ids)
     train_labels = np.array(train_labels, dtype=np.int32)
     if np.min(train_labels) == 1:
         train_labels = train_labels - 1
     test_texts_vectorized = np.array(test_texts_vectorized, dtype=np.int32)
     if len(test_ids) != len(np.array(test_ids, dtype=np.int32)):
         raise ValueError("Decrease in precision causes ID duplicates.")
-    test_ids = np.array(test_ids, dtype=np.int32)
+    test_ids = np.array(test_ids)
     test_labels = np.array(test_labels, dtype=np.int32)
     if np.min(test_labels) == 1:
         test_labels = test_labels - 1
@@ -367,7 +367,7 @@ def read_text_files_and_labels_with_vocab_processor(labels_dict,
         dev_texts_vectorized = np.array(dev_texts_vectorized, dtype=np.int32)
         if len(dev_ids) != len(np.array(dev_ids, dtype=np.int32)):
             raise ValueError("Decrease in precision causes ID duplicates.")
-        dev_ids = np.array(dev_ids, dtype=np.int32)
+        dev_ids = np.array(dev_ids)
         dev_labels = np.array(dev_labels, dtype=np.int32)
         if np.min(dev_labels) == 1:
             dev_labels = dev_labels - 1
@@ -399,6 +399,9 @@ class DataSet:
 
     def get_size(self):
         return self._num_examples
+
+    def get_num_classes(self):
+        return len(set(self._labels))
 
     def next_batch(self, batch_size):
 
@@ -759,3 +762,117 @@ def conv_layer(input, filter_size, num_filter, max_pool_filter_size, max_pool_st
                           strides=[1, 1, max_pool_stride_size, 1],
                           padding='VALID')
     return conv
+
+
+class TextCNN(object):
+    """
+    A CNN for text classification.
+
+    Uses an embedding layer, followed by a convolutional, max-pooling
+    and softmax layer.
+
+    From: https://github.com/dennybritz/cnn-text-classification-tf/blob/master/text_cnn.py
+    """
+
+    def __init__(self, sequence_length, num_classes, vocab_size, embedding_size,
+                 filter_sizes, num_filters, l2_reg_lambda=0.0):
+        """
+        Initialize `TextCNN` object.
+
+        :param sequence_length: number of training samples
+        :type sequence_length: int
+        :param num_classes: number of classes
+        :type num_classes: int
+        :param vocab_size: size of vocabulary
+        :type vocab_size: int
+        :param embedding_size: dimensionality of character embedding
+        :type embedding_size: int
+        :param filter_sizes: list of filter sizes
+        :type filter_sizes: list of int
+        :param num_filters: number of filters for each filter size
+        :type num_filters: int
+        :param l2_reg_lambda: L2 regularization lambda
+        :type l2_reg_lambda: float
+        """
+
+        # Placeholders for input, output and dropout
+        self.input_x = tf.placeholder(tf.int32, [None, sequence_length],
+                                      name="input_x")
+        self.input_y = tf.placeholder(tf.float32, [None, num_classes],
+                                      name="input_y")
+        self.dropout_keep_prob = tf.placeholder(tf.float32,
+                                                name="dropout_keep_prob")
+
+        # Keeping track of l2 regularization loss (optional)
+        l2_loss = tf.constant(0.0)
+
+        # Embedding layer
+        with tf.device('/cpu:0'), tf.name_scope("embedding"):
+            self.W = tf.Variable(tf.random_uniform([vocab_size, embedding_size],
+                                                   -1.0, 1.0),
+                                 name="W")
+            self.embedded_chars = tf.nn.embedding_lookup(self.W, self.input_x)
+            self.embedded_chars_expanded = tf.expand_dims(self.embedded_chars, -1)
+
+        # Create a convolution + maxpool layer for each filter size
+        pooled_outputs = []
+        for i, filter_size in enumerate(filter_sizes):
+            with tf.name_scope("conv-maxpool-{}".format(filter_size)):
+
+                # Convolution Layer
+                filter_shape = [filter_size, embedding_size, 1, num_filters]
+                W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1),
+                                name="W")
+                b = tf.Variable(tf.constant(0.1, shape=[num_filters]), name="b")
+                conv = tf.nn.conv2d(self.embedded_chars_expanded,
+                                    W,
+                                    strides=[1, 1, 1, 1],
+                                    padding="VALID",
+                                    name="conv")
+
+                # Apply nonlinearity
+                h = tf.nn.relu(tf.nn.bias_add(conv, b), name="relu")
+
+                # Maxpooling over the outputs
+                pooled = \
+                    tf.nn.max_pool(h,
+                                   ksize=[1, sequence_length - filter_size + 1,
+                                          1, 1],
+                                   strides=[1, 1, 1, 1],
+                                   padding='VALID',
+                                   name="pool")
+                pooled_outputs.append(pooled)
+
+        # Combine all the pooled features
+        num_filters_total = num_filters * len(filter_sizes)
+        self.h_pool = tf.concat(pooled_outputs, 3)
+        self.h_pool_flat = tf.reshape(self.h_pool, [-1, num_filters_total])
+
+        # Add dropout
+        with tf.name_scope("dropout"):
+            self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
+
+        # Final (unnormalized) scores and predictions
+        with tf.name_scope("output"):
+            W = \
+                tf.get_variable("W",
+                                shape=[num_filters_total, num_classes],
+                                initializer=tf.contrib.layers.xavier_initializer())
+            b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
+            l2_loss += tf.nn.l2_loss(W)
+            l2_loss += tf.nn.l2_loss(b)
+            self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="scores")
+            self.predictions = tf.argmax(self.scores, 1, name="predictions")
+
+        # CalculateMean cross-entropy loss
+        with tf.name_scope("loss"):
+            losses = tf.nn.softmax_cross_entropy_with_logits(logits=self.scores,
+                                                             labels=self.input_y)
+            self.loss = tf.reduce_mean(losses) + l2_reg_lambda * l2_loss
+
+        # Accuracy
+        with tf.name_scope("accuracy"):
+            correct_predictions = tf.equal(self.predictions,
+                                           tf.argmax(self.input_y, 1))
+            self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"),
+                                           name="accuracy")
