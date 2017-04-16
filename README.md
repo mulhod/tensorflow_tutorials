@@ -13,3 +13,4 @@
 - All tutorials are in the directories within the [`tutorial_notebooks`](./tutorial_notebooks) directory.
 * [MNIST for ML Beginners](tutorial_notebooks/MNIST_for_ML_Beginners/MNIST_for_ML_Beginners.ipynb)
 * [TensorFlow Mechanics 101](tutotial_notebooks/TensorFlow_Mechanics_101/TensorFlow_Mechanics_101.ipynb)
+* [Convolutional Neural Networks](tutorial_notebooks/Convolutional_Neural_Networks)
